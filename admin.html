@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة المحاضر والإدارة الجامعية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f4f8', 100: '#d9e2ec', 500: '#102a43', 600: '#0b69a3', 700: '#035388', gold: '#d4af37' }
+                    },
+                    fontFamily: { cairo: ['Cairo', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>body { font-family: 'Cairo', sans-serif; } .modal-blur { backdrop-filter: blur(5px); }</style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-brand-500 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="w-12 h-12 bg-brand-gold rounded-xl flex items-center justify-center text-brand-500 font-bold text-2xl shadow">👨‍🏫</div>
+                <div>
+                    <h1 class="text-xl font-bold">لوحة المحاضر اللحظية</h1>
+                    <p class="text-xs text-slate-300">رصد الدرجات والتكاليف فورياً مع الطلاب</p>
+                </div>
+            </div>
+            <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-amber-400">
+                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+
+        <!-- ADMIN AUTH CHECK -->
+        <div id="adminAuthBox" class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 max-w-md mx-auto text-center">
+            <div class="w-16 h-16 bg-red-50 dark:bg-slate-700 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="lock" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-xl font-bold mb-2">الدخول للوحة المحاضر</h2>
+            <p class="text-xs text-slate-500 mb-4">أدخل كلمة المرور (الافتراضية: admin123)</p>
+            <form onsubmit="verifyAdminPass(event)" class="space-y-3">
+                <input type="password" id="adminPassInput" placeholder="كلمة السر..." class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-center font-mono text-sm outline-none">
+                <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm shadow">
+                    دخول اللوحة
+                </button>
+            </form>
+        </div>
+
+        <!-- MAIN ADMIN CONTENT -->
+        <div id="adminMainContent" class="hidden space-y-6">
+
+            <!-- SUB-TABS -->
+            <div class="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
+                <button type="button" onclick="switchAdminSubTab('submissions')" id="subtab-submissions" class="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-2">
+                    <i data-lucide="file-check-2" class="w-4 h-4"></i> تسليمات الطلاب للتقييم
+                </button>
+                <button type="button" onclick="switchAdminSubTab('profiles')" id="subtab-profiles" class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i> دليل الطلاب (<span id="profileCountBadge">0</span>)
+                </button>
+                <button type="button" onclick="switchAdminSubTab('assignments')" id="subtab-assignments" class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> إضافة تكليف أسبوعي جديد
+                </button>
+            </div>
+
+            <!-- TAB 1: SUBMISSIONS -->
+            <div id="adminTabSubmissions" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <p class="text-xs text-slate-500">إجمالي التسليمات</p>
+                        <h4 id="adminTotalSubs" class="text-2xl font-bold text-brand-600 dark:text-amber-400">0</h4>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <p class="text-xs text-slate-500">تم تقييمها</p>
+                        <h4 id="adminGradedSubs" class="text-2xl font-bold text-emerald-600">0</h4>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <p class="text-xs text-slate-500">بانتظار التقييم</p>
+                        <h4 id="adminPendingSubs" class="text-2xl font-bold text-amber-500">0</h4>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <h3 class="text-lg font-bold">تسليمات الطلاب الواردة (تحديث لحظي)</h3>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="adminSearchInput" oninput="renderAdminSubmissions()" placeholder="بحث باسم الطالب..." class="px-3 py-1.5 rounded-lg border text-xs dark:bg-slate-700">
+                            <button type="button" onclick="exportToCSV()" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold">تصدير Excel</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right text-xs sm:text-sm">
+                            <thead class="bg-slate-100 dark:bg-slate-700">
+                                <tr>
+                                    <th class="p-3">اسم الطالب (ID)</th>
+                                    <th class="p-3">التكليف</th>
+                                    <th class="p-3">التاريخ</th>
+                                    <th class="p-3">الرابط</th>
+                                    <th class="p-3">الدرجة</th>
+                                    <th class="p-3">التقييم</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminSubmissionsTable" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: PROFILES -->
+            <div id="adminTabProfiles" class="hidden space-y-6">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <h3 class="text-lg font-bold text-brand-600 dark:text-amber-400">دليل حسابات الطلاب المسجلة</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right text-xs sm:text-sm">
+                            <thead class="bg-slate-100 dark:bg-slate-700">
+                                <tr>
+                                    <th class="p-3">اسم الطالب</th>
+                                    <th class="p-3">الرقم الجامعي</th>
+                                    <th class="p-3">الكلية/الفرقة</th>
+                                    <th class="p-3">كود التأكيد</th>
+                                    <th class="p-3 text-center">حذف</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminProfilesTable" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: ASSIGNMENTS CREATION -->
+            <div id="adminTabAssignments" class="hidden space-y-6">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 max-w-xl mx-auto">
+                    <h3 class="text-lg font-bold mb-4">إضافة تكليف أسبوعي جديد (يظهر فوراً للطالب)</h3>
+                    <form onsubmit="handleCreateAssignment(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">اسم/عنوان التكليف</label>
+                            <input type="text" id="newAssignTitle" required class="w-full px-4 py-2 rounded-lg border dark:bg-slate-700 text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold mb-1">الدرجة الكلية</label>
+                                <input type="number" id="newAssignMaxGrade" required value="10" class="w-full px-4 py-2 rounded-lg border dark:bg-slate-700 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold mb-1">الموعد النهائي</label>
+                                <input type="date" id="newAssignDueDate" required class="w-full px-4 py-2 rounded-lg border dark:bg-slate-700 text-sm">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-semibold rounded-lg text-sm">نشر التكليف فورياً</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- PREVIEW & EVALUATION MODAL -->
+    <div id="previewModal" class="fixed inset-0 bg-slate-900/70 z-50 modal-blur hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full flex flex-col overflow-hidden border border-slate-300 dark:border-slate-700">
+            <div class="bg-brand-500 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-base" id="modalStudentTitle">تقييم الطالب ورصد الدرجة</h3>
+                <button type="button" onclick="closePreviewModal()"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="modalSubId">
+                <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-xl space-y-2">
+                    <p class="text-xs text-slate-500">رابط التسليم الخاص بالطالب:</p>
+                    <a id="modalSubLink" href="#" target="_blank" class="text-blue-600 font-bold underline break-all text-sm">فتح رابط الواجب</a>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">الدرجة المستحقة</label>
+                    <input type="number" id="modalGradeInput" step="0.5" class="w-full px-3 py-2 rounded-lg border dark:bg-slate-700 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">ملاحظات والتغذية الراجعة للطالب</label>
+                    <textarea id="modalFeedbackInput" rows="3" class="w-full px-3 py-2 rounded-lg border dark:bg-slate-700 text-sm outline-none"></textarea>
+                </div>
+                <button type="button" onclick="saveEvaluation()" class="w-full py-2.5 bg-emerald-600 text-white font-semibold rounded-lg text-sm">حفظ وإرسال التقييم للطالب فوراً</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://uni-portal-assignment-default-rtdb.firebaseio.com"
+        };
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        let profiles = {};
+        let assignments = {};
+        let submissions = {};
+
+        document.addEventListener('DOMContentLoaded', () => { 
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            listenToRealtimeData();
+        });
+
+        function listenToRealtimeData() {
+            db.ref('assignments').on('value', (snapshot) => {
+                assignments = snapshot.val() || {};
+            });
+
+            db.ref('profiles').on('value', (snapshot) => {
+                profiles = snapshot.val() || {};
+                renderProfilesTable();
+            });
+
+            db.ref('submissions').on('value', (snapshot) => {
+                submissions = snapshot.val() || {};
+                renderAdminSubmissions();
+            });
+        }
+
+        function verifyAdminPass(e) {
+            e.preventDefault();
+            const passInput = document.getElementById('adminPassInput');
+            if (passInput && passInput.value === 'admin123') {
+                const authBox = document.getElementById('adminAuthBox');
+                const mainContent = document.getElementById('adminMainContent');
+                if(authBox) authBox.classList.add('hidden');
+                if(mainContent) mainContent.classList.remove('hidden');
+                renderAdminSubmissions();
+                renderProfilesTable();
+            } else {
+                alert('كلمة المرور غير صحيحة!');
+            }
+        }
+
+        function switchAdminSubTab(subtab) {
+            const subTabSubmissions = document.getElementById('adminTabSubmissions');
+            const subTabProfiles = document.getElementById('adminTabProfiles');
+            const subTabAssignments = document.getElementById('adminTabAssignments');
+
+            if(subTabSubmissions) subTabSubmissions.classList.add('hidden');
+            if(subTabProfiles) subTabProfiles.classList.add('hidden');
+            if(subTabAssignments) subTabAssignments.classList.add('hidden');
+
+            const btnSub = document.getElementById('subtab-submissions');
+            const btnProf = document.getElementById('subtab-profiles');
+            const btnAssign = document.getElementById('subtab-assignments');
+
+            if(btnSub) btnSub.className = "px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-2";
+            if(btnProf) btnProf.className = "px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-2";
+            if(btnAssign) btnAssign.className = "px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-2";
+
+            if(subtab === 'submissions') {
+                if(subTabSubmissions) subTabSubmissions.classList.remove('hidden');
+                if(btnSub) btnSub.className = "px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-2";
+            } else if(subtab === 'profiles') {
+                if(subTabProfiles) subTabProfiles.classList.remove('hidden');
+                if(btnProf) btnProf.className = "px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-2";
+            } else {
+                if(subTabAssignments) subTabAssignments.classList.remove('hidden');
+                if(btnAssign) btnAssign.className = "px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-2";
+            }
+        }
+
+        function renderAdminSubmissions() {
+            const searchInput = document.getElementById('adminSearchInput');
+            const query = searchInput ? searchInput.value.toLowerCase() : '';
+            const tbody = document.getElementById('adminSubmissionsTable');
+            if(!tbody) return;
+
+            const subList = Object.values(submissions);
+            const filtered = subList.filter(s => s.studentName.toLowerCase().includes(query) || s.studentId.includes(query));
+
+            const totalSubs = document.getElementById('adminTotalSubs');
+            const gradedSubs = document.getElementById('adminGradedSubs');
+            const pendingSubs = document.getElementById('adminPendingSubs');
+
+            if(totalSubs) totalSubs.innerText = subList.length;
+            if(gradedSubs) gradedSubs.innerText = subList.filter(s => s.status === 'تم التقييم').length;
+            if(pendingSubs) pendingSubs.innerText = subList.filter(s => s.status === 'قيد التقييم').length;
+
+            tbody.innerHTML = filtered.map(s => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td class="p-3 font-bold">${s.studentName} <span class="text-[10px] text-slate-400 block">ID: ${s.studentId}</span></td>
+                    <td class="p-3">${s.title}</td>
+                    <td class="p-3 text-xs">${s.date}</td>
+                    <td class="p-3"><a href="${s.link}" target="_blank" class="text-blue-600 underline font-bold">معاينة</a></td>
+                    <td class="p-3 font-bold text-brand-600 dark:text-amber-400">${s.grade !== null && s.grade !== undefined ? s.grade : 'لم تقيم'}</td>
+                    <td class="p-3">
+                        <button type="button" onclick="openPreviewModal('${s.id}')" class="px-3 py-1 bg-brand-600 text-white rounded text-xs">تقييم ورصد</button>
+                    </td>
+                </tr>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function renderProfilesTable() {
+            const tbody = document.getElementById('adminProfilesTable');
+            if(!tbody) return;
+            const profList = Object.values(profiles);
+            const countBadge = document.getElementById('profileCountBadge');
+            if(countBadge) countBadge.innerText = profList.length;
+
+            tbody.innerHTML = profList.map(p => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td class="p-3 font-bold">${p.name}</td>
+                    <td class="p-3 font-mono">${p.id}</td>
+                    <td class="p-3">${p.dept || '---'}</td>
+                    <td class="p-3 font-mono font-bold text-brand-600 dark:text-amber-400">${p.code}</td>
+                    <td class="p-3 text-center">
+                        <button type="button" onclick="deleteProfile('${p.id}')" class="px-2.5 py-1 bg-red-600 text-white text-xs rounded">مسح</button>
+                    </td>
+                </tr>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function deleteProfile(id) {
+            if (confirm('هل أنت تأكد من مسح هذا الطالب؟')) {
+                db.ref('profiles/' + id).remove();
+            }
+        }
+
+        function handleCreateAssignment(e) {
+            e.preventDefault();
+            const titleInput = document.getElementById('newAssignTitle');
+            const maxGradeInput = document.getElementById('newAssignMaxGrade');
+            const dueDateInput = document.getElementById('newAssignDueDate');
+
+            if(!titleInput || !maxGradeInput || !dueDateInput) return;
+
+            const assignId = 'assign-' + Date.now();
+            const newAssign = {
+                id: assignId,
+                title: titleInput.value,
+                maxGrade: parseFloat(maxGradeInput.value),
+                dueDate: dueDateInput.value
+            };
+
+            db.ref('assignments/' + assignId).set(newAssign, (err) => {
+                if(!err) {
+                    alert('تم نشر التكليف فورياً لجميع الطلاب!');
+                    titleInput.value = '';
+                } else {
+                    alert('حدث خطأ أثناء نشر التكليف.');
+                }
+            });
+        }
+
+        function openPreviewModal(subId) {
+            const sub = submissions[subId];
+            if (!sub) return;
+            const modalSubId = document.getElementById('modalSubId');
+            const modalTitle = document.getElementById('modalStudentTitle');
+            const modalLink = document.getElementById('modalSubLink');
+            const modalGrade = document.getElementById('modalGradeInput');
+            const modalFeedback = document.getElementById('modalFeedbackInput');
+
+            if(modalSubId) modalSubId.value = sub.id;
+            if(modalTitle) modalTitle.innerText = `تقييم الطالب: ${sub.studentName}`;
+            if(modalLink) modalLink.href = sub.link;
+            if(modalGrade) modalGrade.value = sub.grade || '';
+            if(modalFeedback) modalFeedback.value = sub.feedback || '';
+
+            const modal = document.getElementById('previewModal');
+            if(modal) modal.classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            const modal = document.getElementById('previewModal');
+            if(modal) modal.classList.add('hidden');
+        }
+
+        function saveEvaluation() {
+            const subIdElem = document.getElementById('modalSubId');
+            const gradeElem = document.getElementById('modalGradeInput');
+            const feedbackElem = document.getElementById('modalFeedbackInput');
+
+            if(!subIdElem || !gradeElem) return;
+
+            const subId = subIdElem.value;
+            const grade = parseFloat(gradeElem.value);
+            const feedback = feedbackElem ? feedbackElem.value : '';
+
+            db.ref('submissions/' + subId).update({
+                grade: grade,
+                feedback: feedback,
+                status: 'تم التقييم'
+            }, (err) => {
+                if(!err) {
+                    closePreviewModal();
+                    alert('تم حفظ التقييم وإرساله للطالب بنجاح!');
+                } else {
+                    alert('حدث خطأ أثناء حفظ التقييم.');
+                }
+            });
+        }
+
+        function exportToCSV() {
+            let csv = "\uFEFFاسم الطالب,الرقم الجامعي,التكليف,التاريخ,الدرجة,الملاحظات\n";
+            Object.values(submissions).forEach(s => {
+                csv += `"${s.studentName}","${s.studentId}","${s.title}","${s.date}","${s.grade || ''}","${s.feedback || ''}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "تسليمات_الطلاب.csv";
+            link.click();
+        }
+
+        function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
+    </script>
+</body>
+</html>

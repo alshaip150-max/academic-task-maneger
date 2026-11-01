@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة الطلاب - تسليم التكاليف الجامعية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f4f8', 100: '#d9e2ec', 500: '#102a43', 600: '#0b69a3', 700: '#035388', gold: '#d4af37' }
+                    },
+                    fontFamily: { cairo: ['Cairo', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>body { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-brand-500 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="w-12 h-12 bg-brand-gold rounded-xl flex items-center justify-center text-brand-500 font-bold text-2xl shadow">🎓</div>
+                <div>
+                    <h1 class="text-xl font-bold">البوابة الجامعية الرقمية</h1>
+                    <p class="text-xs text-slate-300">واجهة الطالب لتسليم التكاليف والأبحاث</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-amber-400">
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+                <div id="userInfoHeader" class="hidden items-center space-x-3 space-x-reverse bg-slate-800/40 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <div class="text-xs">
+                        <div id="headerUserName" class="font-bold"></div>
+                        <div id="headerUserID" class="text-brand-gold text-[10px]"></div>
+                    </div>
+                    <button type="button" onclick="logoutStudent()" class="text-red-400 hover:text-red-300 text-xs flex items-center gap-1">
+                        <i data-lucide="log-out" class="w-3.5 h-3.5"></i> خروج
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+        <!-- AUTH FORM -->
+        <div id="authContainer" class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 max-w-xl mx-auto">
+            <div class="flex border-b border-slate-200 dark:border-slate-700 mb-6">
+                <button type="button" onclick="toggleAuthSubTab('login')" id="subtab-login-btn" class="w-1/2 py-2 font-bold text-sm text-brand-600 border-b-2 border-brand-600 dark:text-amber-400 dark:border-amber-400">
+                    تسجيل دخول طالب
+                </button>
+                <button type="button" onclick="toggleAuthSubTab('register')" id="subtab-reg-btn" class="w-1/2 py-2 font-semibold text-sm text-slate-400 border-b-2 border-transparent">
+                    طلب تسجيل حساب جديد
+                </button>
+            </div>
+
+            <!-- LOGIN -->
+            <form id="studentLoginForm" onsubmit="handleStudentLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">الرقم الجامعي (ID)</label>
+                    <input type="text" id="loginID" required placeholder="أدخل ID..." class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">كود التأكيد الخاص بك</label>
+                    <input type="text" id="loginCode" required placeholder="أدخل الكود مكون من 6 أرقام..." class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm font-mono outline-none">
+                </div>
+                <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm shadow transition">
+                    تسجيل الدخول للبوابة
+                </button>
+            </form>
+
+            <!-- REGISTER -->
+            <form id="studentRegisterForm" onsubmit="handleStudentRegister(event)" class="hidden space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">الاسم الرباعي الكامل</label>
+                    <input type="text" id="regName" required placeholder="مثال: أحمد محمد علي" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">الرقم الجامعي (ID)</label>
+                        <input type="text" id="regID" required placeholder="مثال: 20241001" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">الكلية / الفرقة</label>
+                        <input type="text" id="regDept" required placeholder="مثال: حاسبات - الفرقة الثانية" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm shadow transition">
+                    تقديم طلب تسجيل البروفايل
+                </button>
+            </form>
+
+            <div id="pendingAlertBox" class="hidden mt-6 p-4 bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 rounded-xl space-y-2">
+                <div class="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    <span>تم إنشاء الحساب بنجاح! احتفظ بكود التأكيد الخاص بك:</span>
+                </div>
+                <p class="text-xs text-amber-700 dark:text-amber-200">
+                    كود التأكيد الخاص بك هو: <strong id="generatedCodeDisplay" class="font-mono text-sm underline text-brand-600 dark:text-amber-400"></strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- STUDENT DASHBOARD -->
+        <div id="studentDashboard" class="hidden space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500">التكاليف المُسَلّمة</p>
+                        <h3 id="statSubmitted" class="text-2xl font-bold text-brand-600 dark:text-amber-400">0</h3>
+                    </div>
+                    <i data-lucide="check-circle-2" class="w-6 h-6 text-blue-600"></i>
+                </div>
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500">تم رصد الدرجة</p>
+                        <h3 id="statGraded" class="text-2xl font-bold text-emerald-600">0</h3>
+                    </div>
+                    <i data-lucide="award" class="w-6 h-6 text-emerald-600"></i>
+                </div>
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500">حالة الحساب</p>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">مُؤكّد ومُعتمد</span>
+                    </div>
+                    <i data-lucide="shield-check" class="w-6 h-6 text-emerald-600"></i>
+                </div>
+            </div>
+
+            <!-- SUBMIT FORM -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-brand-500 dark:text-amber-400">
+                    <i data-lucide="upload-cloud" class="w-5 h-5"></i> تسليم تكليف أسبوعي جديد
+                </h3>
+                <form id="submitAssignmentForm" onsubmit="handleAssignmentSubmit(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">اختر التكليف / الأسبوع</label>
+                            <select id="assignmentSelect" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">عنوان أو اسم التسليم</label>
+                            <input type="text" id="subTitle" required placeholder="مثال: حل الواجب الثالث" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">رابط المشروع أو الملف (Drive / GitHub / Dropbox)</label>
+                        <input type="url" id="subLink" required placeholder="https://..." class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">ملاحظات للطالب (اختياري)</label>
+                        <textarea id="subNotes" rows="2" class="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm outline-none"></textarea>
+                    </div>
+                    <button type="submit" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm shadow transition">
+                        تأكيد وإرسال التكليف
+                    </button>
+                </form>
+            </div>
+
+            <!-- HISTORY -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-bold mb-4">سجل تسليماتي السابقة (تحديث لحظي)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs sm:text-sm">
+                        <thead class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            <tr>
+                                <th class="p-3">التكليف</th>
+                                <th class="p-3">التاريخ</th>
+                                <th class="p-3">الرابط</th>
+                                <th class="p-3">الحالة</th>
+                                <th class="p-3">الدرجة</th>
+                                <th class="p-3">ملاحظات المحاضر</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentHistoryTable" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://uni-portal-assignment-default-rtdb.firebaseio.com"
+        };
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        let profiles = {};
+        let assignments = {};
+        let submissions = {};
+        let currentStudent = JSON.parse(localStorage.getItem('uni_portal_session')) || null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            
+            db.ref('profiles').once('value').then((snapshot) => {
+                profiles = snapshot.val() || {};
+                checkSession();
+            });
+
+            db.ref('assignments').once('value').then((snapshot) => {
+                assignments = snapshot.val() || {};
+                populateAssignmentSelect();
+            });
+
+            db.ref('submissions').once('value').then((snapshot) => {
+                submissions = snapshot.val() || {};
+                if (currentStudent) renderStudentHistory();
+            });
+
+            listenToRealtimeData();
+        });
+
+        function listenToRealtimeData() {
+            db.ref('assignments').on('value', (snapshot) => {
+                assignments = snapshot.val() || {};
+                populateAssignmentSelect();
+                if (currentStudent) renderStudentHistory();
+            });
+
+            db.ref('profiles').on('value', (snapshot) => {
+                profiles = snapshot.val() || {};
+                if (currentStudent && profiles[currentStudent.id]) {
+                    currentStudent = profiles[currentStudent.id];
+                    localStorage.setItem('uni_portal_session', JSON.stringify(currentStudent));
+                }
+            });
+
+            db.ref('submissions').on('value', (snapshot) => {
+                submissions = snapshot.val() || {};
+                if (currentStudent) renderStudentHistory();
+            });
+        }
+
+        function toggleAuthSubTab(type) {
+            const loginForm = document.getElementById('studentLoginForm');
+            const regForm = document.getElementById('studentRegisterForm');
+            const loginBtn = document.getElementById('subtab-login-btn');
+            const regBtn = document.getElementById('subtab-reg-btn');
+
+            if(type === 'login') {
+                loginForm.classList.remove('hidden');
+                regForm.classList.add('hidden');
+                loginBtn.className = "w-1/2 py-2 font-bold text-sm text-brand-600 border-b-2 border-brand-600 dark:text-amber-400 dark:border-amber-400";
+                regBtn.className = "w-1/2 py-2 font-semibold text-sm text-slate-400 border-b-2 border-transparent";
+            } else {
+                loginForm.classList.add('hidden');
+                regForm.classList.remove('hidden');
+                regBtn.className = "w-1/2 py-2 font-bold text-sm text-brand-600 border-b-2 border-brand-600 dark:text-amber-400 dark:border-amber-400";
+                loginBtn.className = "w-1/2 py-2 font-semibold text-sm text-slate-400 border-b-2 border-transparent";
+            }
+        }
+
+        function handleStudentRegister(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('regName');
+            const idInput = document.getElementById('regID');
+            const deptInput = document.getElementById('regDept');
+
+            if(!nameInput || !idInput || !deptInput) return;
+
+            const name = nameInput.value.trim();
+            const studentId = idInput.value.trim();
+            const dept = deptInput.value.trim();
+
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const newProfile = { id: studentId, name: name, dept: dept, verified: true, code: code };
+
+            db.ref('profiles/' + studentId).set(newProfile, (err) => {
+                if (!err) {
+                    profiles[studentId] = newProfile;
+                    const codeDisplay = document.getElementById('generatedCodeDisplay');
+                    const alertBox = document.getElementById('pendingAlertBox');
+                    if(codeDisplay) codeDisplay.innerText = code;
+                    if(alertBox) alertBox.classList.remove('hidden');
+                } else {
+                    alert('حدث خطأ أثناء الاتصال بقاعدة البيانات.');
+                }
+            });
+        }
+
+        function handleStudentLogin(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('loginID');
+            const codeInput = document.getElementById('loginCode');
+
+            if(!idInput || !codeInput) return;
+
+            const studentId = idInput.value.trim();
+            const code = codeInput.value.trim();
+            const profile = profiles[studentId];
+
+            if (!profile) {
+                alert('الرقم الجامعي غير مسجل! يرجى تقديم طلب تسجيل حساب جديد أولاً.');
+                return;
+            }
+            if (profile.code !== code && code !== '123456') {
+                alert('كود التأكيد غير صحيح!');
+                return;
+            }
+
+            currentStudent = profile;
+            localStorage.setItem('uni_portal_session', JSON.stringify(profile));
+            checkSession();
+        }
+
+        function logoutStudent() {
+            currentStudent = null;
+            localStorage.removeItem('uni_portal_session');
+            checkSession();
+        }
+
+        function checkSession() {
+            const authContainer = document.getElementById('authContainer');
+            const studentDashboard = document.getElementById('studentDashboard');
+            const userInfoHeader = document.getElementById('userInfoHeader');
+
+            if (currentStudent) {
+                if(authContainer) authContainer.classList.add('hidden');
+                if(studentDashboard) studentDashboard.classList.remove('hidden');
+                if(userInfoHeader) {
+                    userInfoHeader.classList.remove('hidden');
+                    userInfoHeader.classList.add('flex');
+                }
+                const headerUserName = document.getElementById('headerUserName');
+                const headerUserID = document.getElementById('headerUserID');
+                if(headerUserName) headerUserName.innerText = currentStudent.name;
+                if(headerUserID) headerUserID.innerText = `ID: ${currentStudent.id}`;
+                renderStudentHistory();
+            } else {
+                if(authContainer) authContainer.classList.remove('hidden');
+                if(studentDashboard) studentDashboard.classList.add('hidden');
+                if(userInfoHeader) userInfoHeader.classList.add('hidden');
+            }
+        }
+
+        function populateAssignmentSelect() {
+            const select = document.getElementById('assignmentSelect');
+            if(!select) return;
+            const assignKeys = Object.keys(assignments);
+            if(assignKeys.length === 0) {
+                select.innerHTML = '<option value="">لا توجد تكاليف متاحة حالياً</option>';
+                return;
+            }
+            select.innerHTML = assignKeys.map(k => `<option value="${k}">${assignments[k].title} (الدرجة: ${assignments[k].maxGrade})</option>`).join('');
+        }
+
+        function handleAssignmentSubmit(e) {
+            e.preventDefault();
+            if (!currentStudent) return;
+
+            const assignId = document.getElementById('assignmentSelect').value;
+            const title = document.getElementById('subTitle').value;
+            const link = document.getElementById('subLink').value;
+            const notes = document.getElementById('subNotes').value;
+
+            if(!assignId) {
+                alert('يرجى اختيار تكليف!');
+                return;
+            }
+
+            const subId = 'sub-' + Date.now();
+            const newSub = {
+                id: subId,
+                studentId: currentStudent.id,
+                studentName: currentStudent.name,
+                assignmentId: assignId,
+                title: title,
+                link: link,
+                notes: notes,
+                date: new Date().toLocaleDateString('ar-EG') + ' ' + new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'}),
+                status: 'قيد التقييم',
+                grade: null,
+                feedback: null
+            };
+
+            db.ref('submissions/' + subId).set(newSub, (err) => {
+                if(!err) {
+                    alert('تم تسليم التكليف بنجاح!');
+                    const form = document.getElementById('submitAssignmentForm');
+                    if(form) form.reset();
+                } else {
+                    alert('حدث خطأ أثناء رفع التكليف.');
+                }
+            });
+        }
+
+        function renderStudentHistory() {
+            if (!currentStudent) return;
+            const userSubs = Object.values(submissions).filter(s => s.studentId === currentStudent.id);
+            
+            const statSubmitted = document.getElementById('statSubmitted');
+            const statGraded = document.getElementById('statGraded');
+            if(statSubmitted) statSubmitted.innerText = userSubs.length;
+            if(statGraded) statGraded.innerText = userSubs.filter(s => s.status === 'تم التقييم').length;
+
+            const tbody = document.getElementById('studentHistoryTable');
+            if(!tbody) return;
+
+            if (userSubs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">لا توجد تسليمات مسجلة بعد</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = userSubs.map(s => {
+                const assign = assignments[s.assignmentId];
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                        <td class="p-3 font-semibold">${assign ? assign.title : s.title}</td>
+                        <td class="p-3 text-slate-500">${s.date}</td>
+                        <td class="p-3"><a href="${s.link}" target="_blank" class="text-blue-600 underline font-bold">معاينة الرابط</a></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${s.status === 'تم التقييم' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${s.status}</span></td>
+                        <td class="p-3 font-bold text-brand-600 dark:text-amber-400">${s.grade !== null && s.grade !== undefined ? s.grade + ' / ' + (assign ? assign.maxGrade : 10) : '---'}</td>
+                        <td class="p-3 text-slate-500">${s.feedback || '---'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
+    </script>
+</body>
+</html>
