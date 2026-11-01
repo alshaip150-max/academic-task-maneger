@@ -39,7 +39,10 @@
                     <p class="text-xs text-slate-300">واجهة الطالب لتسليم التكاليف والأبحاث</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-4 space-x-reverse">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <a href="admin.html" class="px-3 py-1.5 bg-brand-gold text-brand-500 hover:bg-amber-400 font-bold text-xs rounded-lg shadow transition flex items-center gap-1">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i> لوحة المحاضر
+                </a>
                 <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-amber-400">
                     <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
                     <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
@@ -107,8 +110,8 @@
 
             <div id="pendingAlertBox" class="hidden mt-6 p-4 bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 rounded-xl space-y-2">
                 <div class="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
-                    <i data-lucide="clock" class="w-4 h-4"></i>
-                    <span>تم إنشاء الحساب بنجاح! احتفظ بكود التأكيد الخاص بك:</span>
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    <span>تم إنشاء الحساب بنجاح! احتفظ بكود التأكيد:</span>
                 </div>
                 <p class="text-xs text-amber-700 dark:text-amber-200">
                     كود التأكيد الخاص بك هو: <strong id="generatedCodeDisplay" class="font-mono text-sm underline text-brand-600 dark:text-amber-400"></strong>
